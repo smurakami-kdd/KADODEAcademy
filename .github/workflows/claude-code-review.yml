@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      pull-requests: write
+      issues: write
       id-token: write
 
     steps:
@@ -36,10 +36,21 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+          prompt: |
+            プルリクエスト #${{ github.event.pull_request.number }} を以下手順でレビューしてください。
+
+            手順:
+            1. `gh pr diff ${{ github.event.pull_request.number }}` で変更差分を取得する。
+            2. 以下の観点で差分を確認する:
+               - ユーザー入力や外部入力に対するバリデーションが不足していないか
+               - 秘密情報、APIキー、トークン、パスワードなどがコードや設定に含まれていないか
+               - インジェクション、任意操作、意図しない情報参照などにつながる危険な実装がないか
+               - 認証・認可が必要な処理で、チェック漏れや権限管理の不備がないか
+               - 例外処理やエラーメッセージによって、内部情報や機密情報が漏れていないか
+               - セキュリティ上重要な異常系・境界値・権限エラーなどのテストが不足していないか
+            3. レビュー結果を必ず `gh pr comment ${{ github.event.pull_request.number }} --body "<本文>"` で投稿する（指摘が無い場合でも必ず投稿する）。
+               - 指摘がある場合: 各指摘に「該当ファイル:行」「リスク」「推奨対応」を簡潔に記載する。
+               - 指摘が無い場合: 「セキュリティ観点で問題は見つかりませんでした」と、確認した観点を列挙する。
+            4. 日本語で、絵文字を使わず簡潔に記載する。
 
